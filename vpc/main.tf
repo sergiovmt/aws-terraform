@@ -15,44 +15,92 @@ tags = {
 }
 
 
-#Create an Internet Gateway
+#Create an Internet Gateway for our Public Subnet
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 }
 
 
-#Create a Subnet
-resource "aws_subnet" "main" {
+#Create a Public Subnet
+resource "aws_subnet" "public" { 
   vpc_id = aws_vpc.main.id
   cidr_block = "10.2.1.0/24" #VARIABLE subnet-cidr
-  map_public_ip_on_launch = var.public-ip-for-ec2 #VARIABLE public-ip-for-ec2 
+  map_public_ip_on_launch = true #VARIABLE public-ip-for-ec2 
 
   tags = {
-    Name = "subnet-tf" #VARIABLE subnet-name
+    Name = "${var.public-subnet-name}"
   }
+}
+
+
+#Create a Private Subnet
+resource "aws_subnet" "private" {
+  vpc_id = aws_vpc.main.id
+  cidr_block = "10.2.2.0/24"
+  map_public_ip_on_launch = false
+  
+  tags = {
+    Name = "${var.private-subnet-name}"
+  }
+}
+
+
+#Create Elastic IP for our NAT Gateway
+resource "aws_eip" "nat_eip" {
+  instance = aws_instance.server.id
+  vpc = true
+  depends_on = [aws_internet_gateway.main] # Bloque "depende de" --> si el Gateway no existe, la IP elástica tampoco
+ } 
+
+
+#Create a NAT Gateway
+resource "aws_nat_gateway" "natgw" {
+  allocation_id = aws_eip.nat_eip.id
+  subnet_id = aws_subnet.public.id
+  depends_on = [aws_internet_gateway.main] # Si no existe el Gateway de Internet, no existe el NAT GW
+
+  tags = {
+    Name = "NAT GW"
+ }
 }
 
 ###################################################################################################################
 
 
-#Create a Route Table and then associate it with the Subnet
-resource "aws_route_table" "default" {
+#Create a Routing Table and then associate it with the Public Subnet
+resource "aws_route_table" "public" {
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
+    gateway_id = aws_internet_gateway.main.id #Internet GW (public)
   }
 }
 
 resource "aws_route_table_association" "main" { 
-  subnet_id = aws_subnet.main.id
-  route_table_id = aws_route_table.default.id
+  subnet_id = aws_subnet.public.id
+  route_table_id = aws_route_table.public.id
+}
+
+
+#Create a Routing Table and then associate it with the Private Subnet
+resource "aws_route_table" "private" {
+  vpc_id = aws_vpc.main.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.natgw.id #NAT GW (private)
+  } 
+}
+
+resource "aws_route_table_association" "private" { 
+  subnet_id = aws_subnet.private.id
+  route_table_id = aws_route_table.private.id
 }
 
 ###################################################################################################################
 
-#
+
 resource "aws_security_group" "public-ec2s" {
   name        = "Public EC2s"
   description = "Public EC2s"
@@ -89,26 +137,6 @@ resource "aws_security_group" "public-ec2s" {
 
 
 ###################################################################################################################
-
-/* #Create Elastic IP for our NAT Gateway
-resource "aws_eip" "eip" {
-  instance = aws_instance.server.id
-  vpc = true
-  depends_on = [aws_internet_gateway.main] # Bloque "depende de" --> si el Gateway no existe, la IP elástica tampoco
- } */
-
-
-#Create a NAT Gateway
-#resource "aws_nat_gateway" "natgw" {
- # allocation_id = aws_eip.eip.id
-  #subnet_id = aws_subnet.main.id
-
- # tags = {
- #   Name = "gw NAT"
- # }
-
- # depends_on = [aws_internet_gateway.main] # Si no existe el Gateway de Internet, no existe el NAT GW
-#}
 
 
 #Create SSH key for our EC2 instance
@@ -164,7 +192,7 @@ resource "aws_instance" "server" {
   ami = "ami-07b63aa1cfd3bc3a5"
   instance_type = "t2.micro"
   key_name = aws_key_pair.tf_key.key_name
-  subnet_id = aws_subnet.main.id
+  subnet_id = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.public-ec2s.id]
 }
 
@@ -172,6 +200,5 @@ output "public_ip" {
   value = aws_instance.server.public_ip #IPv4 public address (conectar con ssh)
 } 
 
-###no conecta----> probar con otra key????
 
 

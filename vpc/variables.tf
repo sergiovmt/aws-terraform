@@ -8,13 +8,25 @@ variable "my-public-ip" {
 
 #AWS Region
 variable "aws-region" {
-    type = string
-    description = "Región de AWS"
+  type = string
+  description = "Región de AWS"
 }
 
 
 #Public Subnet
 variable "public-ip-for-ec2" {
-    type = bool
-    description = "Define si le otorgamos una IP pública a instancia EC2"
+  type = bool
+  description = "Define si le otorgamos una IP pública a instancia EC2"
+}
+
+
+#Public Subnet name 
+variable "public-subnet-name" {
+  type = string
+}
+
+
+#Private Subnet name 
+variable "private-subnet-name" {
+  type = string
 }
