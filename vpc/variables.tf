@@ -30,3 +30,9 @@ variable "public-subnet-name" {
 variable "private-subnet-name" {
   type = string
 }
+
+
+#Bastion private IP
+variable "bastion-private-ip" {
+  type = string
+}
